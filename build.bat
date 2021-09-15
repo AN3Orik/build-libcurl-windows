@@ -132,7 +132,8 @@ REM Housekeeping
 REM Download latest curl and rename to curl.zip
 echo Downloading latest curl...
 set "LOCAL_CURL=%~dp0\curl.zip"
-bitsadmin.exe /transfer "curltransfer" "https://curl.se/download/curl-7.68.0.zip" "%LOCAL_CURL%"
+set "DOWNLOAD_URL=https://curl.se/download/curl-7.68.0.zip"
+powershell "Import-Module BitsTransfer; Start-BitsTransfer 'https://curl.se/download/curl-7.68.0.zip' '%LOCAL_CURL%'"
 
 REM Extract downloaded zip file to tmp_libcurl
 %SEVEN_ZIP% x curl.zip -y -otmp_libcurl | FIND /V "ing  " | FIND /V "Igor Pavlov"

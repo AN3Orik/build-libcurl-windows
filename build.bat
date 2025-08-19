@@ -1,280 +1,153 @@
 @echo off
-setlocal EnableDelayedExpansion 
+setlocal EnableDelayedExpansion
 
+REM =================================================================
+REM 1. SETTINGS
+REM =================================================================
+set CURL_VERSION=8.15.0
+set DOWNLOAD_URL=https://curl.se/download/curl-%CURL_VERSION%.zip
+set EXTRACTED_FOLDER_NAME=curl-%CURL_VERSION%
+
+REM =================================================================
+REM 2. FIND VISUAL STUDIO (HYBRID METHOD)
+REM =================================================================
+echo Looking for Visual Studio...
+
+REM --- Modern Method (Primary) ---
+set "VSWHERE_PATH=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if exist "%VSWHERE_PATH%" (
+    echo Found vswhere, using modern detection method...
+    for /f "usebackq tokens=*" %%i in (`"%VSWHERE_PATH%" -latest -property installationPath`) do (set "VS_INSTALL_PATH=%%i")
+    for /f "usebackq delims=. tokens=1" %%v in (`"%VSWHERE_PATH%" -latest -property installationVersion`) do (set VCVERSION=%%v)
+    
+    if defined VS_INSTALL_PATH (
+        set "VCVARSALL_PATH=%VS_INSTALL_PATH%\VC\Auxiliary\Build\vcvarsall.bat"
+        if exist "%VCVARSALL_PATH%" (
+            echo Found Visual Studio v%VCVERSION% at: %VS_INSTALL_PATH%
+            goto FoundCompiler
+        )
+    )
+)
+
+REM --- Legacy Method (Fallback) ---
+echo vswhere not found or failed. Falling back to legacy path checking...
 set PROGFILES=%ProgramFiles%
 if not "%ProgramFiles(x86)%" == "" set PROGFILES=%ProgramFiles(x86)%
 
-REM Check if VS Build Environment is available
-set VCVARSALLPATH="%VCINSTALLDIR%\Auxiliary\Build\vcvarsall.bat"
-if exist %VCINSTALLDIR% (
-	if exist %VCVARSALLPATH% (
-		if "%VisualStudioVersion%" == "16.0" (
-		set COMPILER_VER="2019"
-		echo Using Visual Studio 2019
-		goto setup_env
-		)
-	)
-)
+REM Check for Visual Studio 2019
+set VCVARSALL_PATH="%PROGFILES%\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvarsall.bat"
+if exist %VCVARSALL_PATH% ( set VCVERSION=16 & echo Found VS 2019 & goto FoundCompiler )
 
-REM Check if Visual Studio 2017 is installed
-set MSVCDIR="%PROGFILES%\Microsoft Visual Studio\2017"
-set VCVARSALLPATH="%PROGFILES%\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat"
-if exist %MSVCDIR% (
-  if exist %VCVARSALLPATH% (
-   	set COMPILER_VER="2017"
-    echo Using Visual Studio 2017 Community
-	goto setup_env
-  )
-)
-REM Check if Visual Studio 2015 is installed
-set MSVCDIR="%PROGFILES%\Microsoft Visual Studio 14.0"
-set VCVARSALLPATH="%PROGFILES%\Microsoft Visual Studio 14.0\VC\vcvarsall.bat"
-if exist %MSVCDIR% (
-  if exist %VCVARSALLPATH% (
-   	set COMPILER_VER="2015"
-        echo Using Visual Studio 2015
-	goto setup_env
-  )
-)
-REM Check if Visual Studio 2013 is installed
-set MSVCDIR="%PROGFILES%\Microsoft Visual Studio 12.0"
-set VCVARSALLPATH="%PROGFILES%\Microsoft Visual Studio 12.0\VC\vcvarsall.bat"
-if exist %MSVCDIR% (
-  if exist %VCVARSALLPATH% (
-    set COMPILER_VER="2013"
-    echo Using Visual Studio 2013
-	goto setup_env
-  )
-)
+REM Check for Visual Studio 2017
+set VCVARSALL_PATH="%PROGFILES%\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvarsall.bat"
+if exist %VCVARSALL_PATH% ( set VCVERSION=15 & echo Found VS 2017 & goto FoundCompiler )
+set VCVARSALL_PATH="%PROGFILES%\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat"
+if exist %VCVARSALL_PATH% ( set VCVERSION=15 & echo Found VS 2017 Community & goto FoundCompiler )
 
-REM Check if Visual Studio 2012 is installed
-set MSVCDIR="%PROGFILES%\Microsoft Visual Studio 11.0"
-set VCVARSALLPATH="%PROGFILES%\Microsoft Visual Studio 11.0\VC\vcvarsall.bat"
-if exist %MSVCDIR% (
-  if exist %VCVARSALLPATH% (
-    set COMPILER_VER="2012"
-    echo Using Visual Studio 2012
-	goto setup_env
-  )
-)
+REM Check for Visual Studio 2015
+set VCVARSALL_PATH="%PROGFILES%\Microsoft Visual Studio 14.0\VC\vcvarsall.bat"
+if exist %VCVARSALL_PATH% ( set VCVERSION=14 & echo Found VS 2015 & goto FoundCompiler )
 
-REM Check if Visual Studio 2010 is installed
-set MSVCDIR="%PROGFILES%\Microsoft Visual Studio 10.0"
-set VCVARSALLPATH="%PROGFILES%\Microsoft Visual Studio 10.0\VC\vcvarsall.bat"
-if exist %MSVCDIR% (
-  if exist %VCVARSALLPATH% (
-    set COMPILER_VER="2010"
-    echo Using Visual Studio 2010
-	goto setup_env
-  )
-)
 
-REM Check if Visual Studio 2008 is installed
-set MSVCDIR="%PROGFILES%\Microsoft Visual Studio 9.0"
-set VCVARSALLPATH="%PROGFILES%\Microsoft Visual Studio 9.0\VC\vcvarsall.bat"
-if exist %MSVCDIR% (
-  if exist %VCVARSALLPATH% (
-    set COMPILER_VER="2008"
-    echo Using Visual Studio 2008
-	goto setup_env
-  )
-)
-
-REM Check if Visual Studio 2005 is installed
-set MSVCDIR="%PROGFILES%\Microsoft Visual Studio 8"
-set VCVARSALLPATH="%PROGFILES%\Microsoft Visual Studio 8\VC\vcvarsall.bat"
-if exist %MSVCDIR% (
-  if exist %VCVARSALLPATH% (
-	set COMPILER_VER="2005"
-    echo Using Visual Studio 2005
-	goto setup_env
-  )
-) 
-
-REM Check if Visual Studio 6 is installed
-set MSVCDIR="%PROGFILES%\Microsoft Visual Studio\VC98"
-set VCVARSALLPATH="%PROGFILES%\Microsoft Visual Studio\VC98\vcvarsall.bat"
-if exist %MSVCDIR% (
-  if exist %VCVARSALLPATH% (
-	set COMPILER_VER="6"
-    echo Using Visual Studio 6
-	goto setup_env
-  )
-) 
-
-echo No compiler : Microsoft Visual Studio (6, 2005, 2008, 2010, 2012, 2013 or 2015) is not installed.
+echo Error: No suitable Visual Studio installation found.
 goto end
 
-:setup_env
+:FoundCompiler
+echo Using compiler version VC%VCVERSION%
 
-echo Setting up environment
-if %COMPILER_VER% == "6" (
-	call %MSVCDIR%\Bin\VCVARS32.BAT
-	goto begin
-)
+REM Set paths to your utilities
+set "ROOT_DIR=%CD%"
+set "RM=%ROOT_DIR%\bin\unxutils\rm.exe"
+set "CP=%ROOT_DIR%\bin\unxutils\cp.exe"
+set "MKDIR=%ROOT_DIR%\bin\unxutils\mkdir.exe"
+set "SEVEN_ZIP=%ROOT_DIR%\bin\7-zip\7za.exe"
 
-:begin
+if not exist "%SEVEN_ZIP%" (echo Error: 7za.exe not found. & goto end)
 
-REM Setup path to helper bin
-set ROOT_DIR="%CD%"
-set RM="%CD%\bin\unxutils\rm.exe"
-set CP="%CD%\bin\unxutils\cp.exe"
-set MKDIR="%CD%\bin\unxutils\mkdir.exe"
-set SEVEN_ZIP="%CD%\bin\7-zip\7za.exe"
-set XIDEL="%CD%\bin\xidel\xidel.exe"
 
-REM Housekeeping
-%RM% -rf tmp_*
+REM =================================================================
+REM 3. PREPARATION
+REM =================================================================
+echo Cleaning up old files...
+%RM% -rf tmp_libcurl
 %RM% -rf third-party
-%RM% -rf curl.zip
-%RM% -rf build_*.txt
+%RM% -f curl.zip
 
-REM Download latest curl and rename to curl.zip
-echo Downloading latest curl...
-set "LOCAL_CURL=%~dp0\curl.zip"
-set "DOWNLOAD_URL=https://curl.se/download/curl-7.68.0.zip"
-powershell "Import-Module BitsTransfer; Start-BitsTransfer 'https://curl.se/download/curl-7.68.0.zip' '%LOCAL_CURL%'"
+echo Downloading curl %CURL_VERSION%...
+set "LOCAL_CURL_PATH=%ROOT_DIR%\curl.zip"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri '%DOWNLOAD_URL%' -OutFile '%LOCAL_CURL_PATH%'"
+if %ERRORLEVEL% neq 0 (echo Failed to download curl.zip. & goto end)
 
-REM Extract downloaded zip file to tmp_libcurl
-%SEVEN_ZIP% x curl.zip -y -otmp_libcurl | FIND /V "ing  " | FIND /V "Igor Pavlov"
+echo Extracting curl.zip...
+%SEVEN_ZIP% x curl.zip -y -otmp_libcurl > NUL
+if %ERRORLEVEL% neq 0 (echo Failed to extract curl.zip. & goto end)
 
-cd tmp_libcurl\curl-*\winbuild
+cd tmp_libcurl\%EXTRACTED_FOLDER_NAME%\winbuild
 
-if %COMPILER_VER% == "6" (
-	set VCVERSION = 6
-	goto buildnow
+REM =================================================================
+REM 4. BUILD THE LIBRARY
+REM =================================================================
+set "RTLIBCFG="
+if /I "%1"=="-static" (
+    set "RTLIBCFG=RTLIBCFG=static"
+    echo Building with STATIC C-Runtime (/MT, /MTd)
+) else (
+    echo Building with DYNAMIC C-Runtime (/MD, /MDd)
 )
 
-if %COMPILER_VER% == "2005" (
-	set VCVERSION = 8
-	goto buildnow
-)
+set "DEPRECATE_ACK=WINBUILD_ACKNOWLEDGE_DEPRECATED=yes"
 
-if %COMPILER_VER% == "2008" (
-	set VCVERSION = 9
-	goto buildnow
-)
+echo Building x86 versions...
+call %VCVARSALL_PATH% x86
+echo  - Compiling static-debug-x86...
+nmake /f Makefile.vc mode=static VC=%VCVERSION% DEBUG=yes MACHINE=x86 %RTLIBCFG% %DEPRECATE_ACK%
+if %ERRORLEVEL% neq 0 (echo NMAKE FAILED! & goto end)
+echo  - Compiling static-release-x86...
+nmake /f Makefile.vc mode=static VC=%VCVERSION% DEBUG=no MACHINE=x86 %RTLIBCFG% %DEPRECATE_ACK%
+if %ERRORLEVEL% neq 0 (echo NMAKE FAILED! & goto end)
 
-if %COMPILER_VER% == "2010" (
-	set VCVERSION = 10
-	goto buildnow
-)
+echo Building x64 versions...
+call %VCVARSALL_PATH% x64
+echo  - Compiling static-debug-x64...
+nmake /f Makefile.vc mode=static VC=%VCVERSION% DEBUG=yes MACHINE=x64 %RTLIBCFG% %DEPRECATE_ACK%
+if %ERRORLEVEL% neq 0 (echo NMAKE FAILED! & goto end)
+echo  - Compiling static-release-x64...
+nmake /f Makefile.vc mode=static VC=%VCVERSION% DEBUG=no MACHINE=x64 %RTLIBCFG% %DEPRECATE_ACK%
+if %ERRORLEVEL% neq 0 (echo NMAKE FAILED! & goto end)
 
-if %COMPILER_VER% == "2012" (
-	set VCVERSION = 11
-	goto buildnow
-)
+REM =================================================================
+REM 5. COPY BUILD ARTIFACTS
+REM =================================================================
+echo Copying build artifacts...
+set "BUILD_DIR_BASE=%ROOT_DIR%\tmp_libcurl\%EXTRACTED_FOLDER_NAME%\builds"
+set "DEST_DIR=%ROOT_DIR%\third-party\libcurl"
 
-if %COMPILER_VER% == "2013" (
-	set VCVERSION = 12
-	goto buildnow
-)
+:CopyFiles
+set "ARCH=%1" & set "CONFIG=%2" & set "LINK_TYPE=%3"
+set "SRC_DIR_SUFFIX=libcurl-vc%VCVERSION%-%ARCH%-%CONFIG%-%LINK_TYPE%-ipv6-sspi-winssl"
+set "SRC_DIR=%BUILD_DIR_BASE%\%SRC_DIR_SUFFIX%"
+set "DEST_SUBDIR=%DEST_DIR%\lib\%LINK_TYPE%-%CONFIG%-%ARCH%"
+echo  - Copying from %SRC_DIR_SUFFIX%
+%MKDIR% -p "%DEST_SUBDIR%"
+%CP% "%SRC_DIR%\lib\*.lib" "%DEST_SUBDIR%"
+goto:eof
 
-if %COMPILER_VER% == "2015" (
-	set VCVERSION = 14
-	goto buildnow
-)
-if %COMPILER_VER% == "2017" (
-	set VCVERSION = 15
-	goto buildnow
-)
-if %COMPILER_VER% == "2019" (
-	set VCVERSION = 16
-	goto buildnow
-)
+call:CopyFiles x86 debug static
+call:CopyFiles x86 release static
+call:CopyFiles x64 debug static
+call:CopyFiles x64 release static
 
-:buildnow
-REM Build!
-echo "Building libcurl now!"
+echo  - Copying include files...
+%MKDIR% -p "%DEST_DIR%\include"
+%CP% -r "%ROOT_DIR%\tmp_libcurl\%EXTRACTED_FOLDER_NAME%\include\curl" "%DEST_DIR%\include"
 
-if [%1]==[-static] (
-	set RTLIBCFG=static
-	echo Using /MT instead of /MD
-) 
-
-echo "Path to vcvarsall.bat: %VCVARSALLPATH%"
-call %VCVARSALLPATH% x86
-
-echo Compiling dll-debug-x86 version...
-nmake /f Makefile.vc mode=dll VC=%VCVERSION% DEBUG=yes
-
-echo Compiling dll-release-x86 version...
-nmake /f Makefile.vc mode=dll VC=%VCVERSION% DEBUG=no GEN_PDB=yes
-
-echo Compiling static-debug-x86 version...
-nmake /f Makefile.vc mode=static VC=%VCVERSION% DEBUG=yes
-
-echo Compiling static-release-x86 version...
-nmake /f Makefile.vc mode=static VC=%VCVERSION% DEBUG=no
-
-call %VCVARSALLPATH% x64
-echo Compiling dll-debug-x64 version...
-nmake /f Makefile.vc mode=dll VC=%VCVERSION% DEBUG=yes MACHINE=x64
-
-echo Compiling dll-release-x64 version...
-nmake /f Makefile.vc mode=dll VC=%VCVERSION% DEBUG=no GEN_PDB=yes MACHINE=x64
-
-echo Compiling static-debug-x64 version...
-nmake /f Makefile.vc mode=static VC=%VCVERSION% DEBUG=yes MACHINE=x64
-
-echo Compiling static-release-x64 version...
-nmake /f Makefile.vc mode=static VC=%VCVERSION% DEBUG=no MACHINE=x64
-
-REM Copy compiled .*lib, *.pdb, *.dll files folder to third-party\lib\dll-debug folder
-cd %ROOT_DIR%\tmp_libcurl\curl-*\builds\libcurl-vc-x86-debug-dll-ipv6-sspi-winssl
-%MKDIR% -p %ROOT_DIR%\third-party\libcurl\lib\dll-debug-x86
-%CP% lib\*.pdb %ROOT_DIR%\third-party\libcurl\lib\dll-debug-x86
-%CP% lib\*.lib %ROOT_DIR%\third-party\libcurl\lib\dll-debug-x86
-%CP% bin\*.dll %ROOT_DIR%\third-party\libcurl\lib\dll-debug-x86
-
-REM Copy compiled .*lib, *.pdb, *.dll files to third-party\lib\dll-release folder
-cd %ROOT_DIR%\tmp_libcurl\curl-*\builds\libcurl-vc-x86-release-dll-ipv6-sspi-winssl
-%MKDIR% -p %ROOT_DIR%\third-party\libcurl\lib\dll-release-x86
-%CP% lib\*.pdb %ROOT_DIR%\third-party\libcurl\lib\dll-release-x86
-%CP% lib\*.lib %ROOT_DIR%\third-party\libcurl\lib\dll-release-x86
-%CP% bin\*.dll %ROOT_DIR%\third-party\libcurl\lib\dll-release-x86
-
-REM Copy compiled .*lib file in lib-release folder to third-party\lib\static-debug folder
-cd %ROOT_DIR%\tmp_libcurl\curl-*\builds\libcurl-vc-x86-debug-static-ipv6-sspi-winssl
-%MKDIR% -p %ROOT_DIR%\third-party\libcurl\lib\static-debug-x86
-%CP% lib\*.lib %ROOT_DIR%\third-party\libcurl\lib\static-debug-x86
-
-REM Copy compiled .*lib files in lib-release folder to third-party\lib\static-release folder
-cd %ROOT_DIR%\tmp_libcurl\curl-*\builds\libcurl-vc-x86-release-static-ipv6-sspi-winssl
-%MKDIR% -p %ROOT_DIR%\third-party\libcurl\lib\static-release-x86
-%CP% lib\*.lib %ROOT_DIR%\third-party\libcurl\lib\static-release-x86
-
-REM Copy compiled .*lib, *.pdb, *.dll files folder to third-party\lib\dll-debug folder
-cd %ROOT_DIR%\tmp_libcurl\curl-*\builds\libcurl-vc-x64-debug-dll-ipv6-sspi-winssl
-%MKDIR% -p %ROOT_DIR%\third-party\libcurl\lib\dll-debug-x64
-%CP% lib\*.pdb %ROOT_DIR%\third-party\libcurl\lib\dll-debug-x64
-%CP% lib\*.lib %ROOT_DIR%\third-party\libcurl\lib\dll-debug-x64
-%CP% bin\*.dll %ROOT_DIR%\third-party\libcurl\lib\dll-debug-x64
-
-REM Copy compiled .*lib, *.pdb, *.dll files to third-party\lib\dll-release folder
-cd %ROOT_DIR%\tmp_libcurl\curl-*\builds\libcurl-vc-x64-release-dll-ipv6-sspi-winssl
-%MKDIR% -p %ROOT_DIR%\third-party\libcurl\lib\dll-release-x64
-%CP% lib\*.pdb %ROOT_DIR%\third-party\libcurl\lib\dll-release-x64
-%CP% lib\*.lib %ROOT_DIR%\third-party\libcurl\lib\dll-release-x64
-%CP% bin\*.dll %ROOT_DIR%\third-party\libcurl\lib\dll-release-x64
-
-REM Copy compiled .*lib file in lib-release folder to third-party\lib\static-debug folder
-cd %ROOT_DIR%\tmp_libcurl\curl-*\builds\libcurl-vc-x64-debug-static-ipv6-sspi-winssl
-%MKDIR% -p %ROOT_DIR%\third-party\libcurl\lib\static-debug-x64
-%CP% lib\*.lib %ROOT_DIR%\third-party\libcurl\lib\static-debug-x64
-
-REM Copy compiled .*lib files in lib-release folder to third-party\lib\static-release folder
-cd %ROOT_DIR%\tmp_libcurl\curl-*\builds\libcurl-vc-x64-release-static-ipv6-sspi-winssl
-%MKDIR% -p %ROOT_DIR%\third-party\libcurl\lib\static-release-x64
-%CP% lib\*.lib %ROOT_DIR%\third-party\libcurl\lib\static-release-x64
-
-
-REM Copy include folder to third-party folder
-%CP% -rf include %ROOT_DIR%\third-party\libcurl
-
-REM Cleanup temporary file/folders
+REM =================================================================
+REM 6. CLEANUP
+REM =================================================================
+echo Cleaning up temporary files...
 cd %ROOT_DIR%
-%RM% -rf tmp_*
+%RM% -rf tmp_libcurl
+%RM% -f curl.zip
 
 :end
 echo Done.
